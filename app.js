@@ -266,11 +266,35 @@ async function renderEventsDT(){
 }
 
 /* ===============================
+   ČEKÁNÍ NA FIREBASE AUTH
+   Po čerstvém načtení stránky (index.html) potřebuje Firebase
+   Auth chvilku obnovit session z IndexedDB, než je auth.uid
+   dostupný pro RTDB pravidla. Bez tohohle čekání první db.ref()
+   volání spadne na permission_denied, i když je uživatel
+   ve skutečnosti přihlášený.
+================================ */
+
+function waitForFirebaseAuth(){
+  return new Promise(resolve => {
+    const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+      unsubscribe()
+      resolve(user)
+    })
+  })
+}
+
+/* ===============================
    START
 ================================ */
 
 async function start(){
   try{
+    const fbUser = await waitForFirebaseAuth()
+    if(!fbUser){
+      window.location.href = "login.html"
+      return
+    }
+
     if(!initActorFromSession()) return
 
     initDarkMode()
