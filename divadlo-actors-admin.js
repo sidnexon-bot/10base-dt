@@ -55,6 +55,7 @@ async function renderActorsDT(){
             ${isChild
               ? `<div class="small">Zákonný zástupce: ${escapeHtml(a.guardianEmail)}</div>`
               : `<div class="small">${escapeHtml(a.email || "—")}</div>`}
+            ${(a.role || "").toUpperCase() === "ADMIN" ? `<div class="small" style="color:#ff9f0a;font-weight:600">ADMIN</div>` : ""}
             ${plays.length ? `<div class="small" style="margin-top:4px;color:#007aff">${plays.map(escapeHtml).join(", ")}</div>` : `<div class="small" style="margin-top:4px;color:var(--muted)">Zatím v žádné hře</div>`}
           </div>
           <div style="display:flex;gap:8px">
@@ -81,7 +82,8 @@ function openAddActorDT(){
     {key: "actorType",     label: "Typ",            type: "select", value: "Dospělý", options: ["Dospělý", "Dítě"]},
     {key: "name",          label: "Jméno",          type: "text"},
     {key: "email",         label: "E-mail (dospělý)", type: "text"},
-    {key: "guardianEmail", label: "E-mail zákonného zástupce (dítě)", type: "text"}
+    {key: "guardianEmail", label: "E-mail zákonného zástupce (dítě)", type: "text"},
+    {key: "role",          label: "Role",           type: "select", value: "MEMBER", options: ["MEMBER", "ADMIN"]}
   ], async (values) => {
     if(!values.name){ alert("Zadej jméno"); return }
 
@@ -89,7 +91,7 @@ function openAddActorDT(){
     if(isChild && !values.guardianEmail){ alert("Zadej e-mail zákonného zástupce"); return }
     if(!isChild && !values.email){ alert("Zadej e-mail"); return }
 
-    const payload = {name: values.name}
+    const payload = {name: values.name, role: values.role}
     if(isChild){
       payload.guardianEmail = values.guardianEmail
     }else{
@@ -120,7 +122,8 @@ async function openEditActorDT(id){
     {key: "actorType",     label: "Typ",            type: "select", value: isChild ? "Dítě" : "Dospělý", options: ["Dospělý", "Dítě"]},
     {key: "name",          label: "Jméno",          type: "text", value: a.name},
     {key: "email",         label: "E-mail (dospělý)", type: "text", value: a.email || ""},
-    {key: "guardianEmail", label: "E-mail zákonného zástupce (dítě)", type: "text", value: a.guardianEmail || ""}
+    {key: "guardianEmail", label: "E-mail zákonného zástupce (dítě)", type: "text", value: a.guardianEmail || ""},
+    {key: "role",          label: "Role",           type: "select", value: (a.role || "MEMBER").toUpperCase(), options: ["MEMBER", "ADMIN"]}
   ], async (values) => {
     if(!values.name){ alert("Zadej jméno"); return }
 
@@ -128,7 +131,7 @@ async function openEditActorDT(id){
     if(nowChild && !values.guardianEmail){ alert("Zadej e-mail zákonného zástupce"); return }
     if(!nowChild && !values.email){ alert("Zadej e-mail"); return }
 
-    const payload = {name: values.name}
+    const payload = {name: values.name, role: values.role}
     if(nowChild){
       payload.guardianEmail = values.guardianEmail
       payload.email = null
