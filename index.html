@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f2f7">
+<title>10base DT</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="apple-touch-icon" href="icon.png">
+
+<!-- Firebase (RTDB, compat SDK — stejné volání db.ref()... jako ve zbytku appky) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<!--
+  firebase-config.js (vytvoř samostatně, není součástí tohoto repa):
+
+  firebase.initializeApp({
+    apiKey: "...",
+    authDomain: "...",
+    databaseURL: "https://TVUJ-PROJEKT-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "..."
+  });
+  window.db = firebase.database();
+-->
+
+</head>
+<body>
+
+<!-- SIDEBAR (desktop only) -->
+<aside class="sidebar" id="sidebar" style="display:none">
+  <div class="sidebar-logo">10base DT</div>
+  <div class="sidebar-subtitle">Divadlo Teenager</div>
+
+  <div class="sidebar-profile">
+    <div class="sidebar-profile-avatar" id="sidebarAvatar">?</div>
+    <div>
+      <div class="sidebar-profile-name" id="sidebarName">—</div>
+      <div class="sidebar-profile-role" id="sidebarRole">—</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="sidebar-nav-item active" id="sidebarDashboard">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      </span>
+      Přehled
+    </button>
+    <button class="sidebar-nav-item" id="sidebarEvents">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </span>
+      Termíny
+    </button>
+    <button class="sidebar-nav-item hidden" id="sidebarActors">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>
+      Herci
+    </button>
+  </nav>
+
+  <hr class="sidebar-divider">
+
+  <div class="sidebar-bottom">
+    <button class="sidebar-action" onclick="toggleDarkMode()">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </span>
+      <span id="sidebarDarkLabel">Tmavý režim</span>
+    </button>
+    <button class="sidebar-action" onclick="Auth.logout()" style="color:#ff3b30">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </span>
+      Odhlásit se
+    </button>
+  </div>
+</aside>
+
+<header>
+  <div class="header-inner">
+    <div class="header-row">
+      <div>
+        <h1>10base DT</h1>
+        <div class="subtitle">Divadlo Teenager</div>
+      </div>
+      <div style="position:relative">
+        <div id="profileBtn" class="profile-btn">?</div>
+        <div id="profileMenu" class="profile-menu hidden">
+          <div class="profile-menu-info">
+            <div id="profileMenuName" class="profile-menu-name"></div>
+            <div id="profileMenuEmail" class="profile-menu-email"></div>
+            <div id="profileMenuRole" class="profile-menu-role"></div>
+          </div>
+          <hr class="profile-menu-divider">
+          <div class="profile-menu-item" id="darkModeToggle" onclick="toggleDarkMode()">
+            <span class="icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+            Tmavý režim
+          </div>
+          <div id="profileMenuActors" class="profile-menu-item hidden" onclick="setActiveTabDT('actors');closeProfileMenu()">
+            <span class="icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            Správa herců
+          </div>
+          <div class="profile-menu-item profile-menu-logout" onclick="Auth.logout()">⏏ Odhlásit se</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div id="detail-panel" style="display:none"></div>
+  <p class="notice">Načítám…</p>
+</main>
+
+<nav class="bottom-wrap">
+  <div class="bottom">
+    <button id="btnDashboard" class="active">
+      <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>
+      <small>Přehled</small>
+    </button>
+    <button id="btnEvents">
+      <span class="icon"><svg viewBox="0 0 24 24"><path d="M6 2v2H5a2 2 0 0 0-2 2v2h18V6a2 2 0 0 0-2-2h-1V2h-2v2H8V2H6zm15 8H3v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10z"/></svg></span>
+      <small>Termíny</small>
+    </button>
+    <button id="btnActors" class="hidden">
+      <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <small>Herci</small>
+    </button>
+  </div>
+</nav>
+
+<!-- FORMULÁŘ TERMÍNU (openEventFormDT z divadlo-event-form.js) -->
+<div id="eventFormModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeEventFormModal()"></div>
+  <div class="modal-content" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <div id="eventFormModalBody"></div>
+  </div>
+</div>
+
+<!-- OBECNÝ FORMULÁŘ (Přidat/Upravit herce, přiřazení k roli — openFormModal) -->
+<div id="formModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeFormModal()"></div>
+  <div class="modal-content" style="padding:20px">
+    <div id="formModalTitle" class="modal-header"></div>
+    <div id="formModalBody"></div>
+    <div class="btn-group" style="margin-top:16px">
+      <button id="formModalSubmit" style="background:#d4f5e2;color:#1a7a3a">Uložit</button>
+      <button onclick="closeFormModal()">Zrušit</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN zatím vypnut -->
+<script src="auth.js"></script>
+<script src="divadlo-event-form.js"></script>
+<script src="divadlo-actors-admin.js"></script>
+<script type="module" src="app.js"></script>
+
+</body>
+</html>
