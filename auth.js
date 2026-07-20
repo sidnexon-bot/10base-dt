@@ -1,9 +1,9 @@
 /* ==============================================================
    10base DT — AUTH.JS
-   Google přihlášení (Firebase Auth) + self-provisioning:
-   při prvním loginu appka sama najde herce, kteří mají tento
-   e-mail buď jako `email` (dospělý), nebo jako `guardianEmail`
-   (rodič dítěte), a přidá jejich actorId do users/{uid}/actors.
+   Google přihlášení (Firebase Auth) + kontrola e-mailu proti
+   plochému uzlu `actors` — stejný princip jako 10base a `members`:
+   appka po loginu proskenuje actors a najde shodu podle email
+   (dospělý) nebo guardianEmail (rodič dítěte). Bez shody = odepře.
    Vyžaduje: window.db (firebase-config.js), firebase-auth-compat.js
 ================================================================== */
 
@@ -13,7 +13,12 @@ const Auth = {
     const provider = new firebase.auth.GoogleAuthProvider()
     try{
       const result = await firebase.auth().signInWithPopup(provider)
-      await Auth._afterLogin(result.user)
+      const ok = await Auth._loadSession(result.user)
+      if(!ok){
+        alert("Tenhle e-mail není v seznamu herců ani zákonných zástupců. Ozvi se adminovi.")
+        await firebase.auth().signOut()
+        return
+      }
       window.location.href = "index.html"
     }catch(err){
       console.error("Přihlášení selhalo:", err)
@@ -28,66 +33,37 @@ const Auth = {
   },
 
   /* -----------------------------------------------------------
-     Po úspěšném Google přihlášení:
-     1) zkus najít existující users/{uid}
-     2) pokud neexistuje, najdi actorId(y) podle e-mailu / guardianEmail
-        a vytvoř users/{uid} = {email, name, role: "member", actors: {...}}
-     3) ulož zjednodušenou session do localStorage — na tu se
-        spoléhá app.js (initActorFromSession)
+     Projde actors, najde všechny záznamy, kde email nebo
+     guardianEmail sedí na přihlašovací e-mail (rodič tak
+     "odemkne" i sebe, i dítě). Role se bere z prvního nalezeného
+     záznamu, který má vlastní `role` pole; pokud je mezi
+     shodami ADMIN, vyhrává ADMIN.
   ----------------------------------------------------------- */
-  async _afterLogin(fbUser){
-    const uid   = fbUser.uid
-    const email = fbUser.email
-    const name  = fbUser.displayName || email
+  async _loadSession(fbUser){
+    const snap   = await db.ref("actors").once("value")
+    const actors = snap.val() || {}
+    const email  = fbUser.email
 
-    let userRecord = null
-    const existingSnap = await db.ref("users/" + uid).once("value")
+    const matches = Object.entries(actors).filter(([id, a]) =>
+      a.email === email || a.guardianEmail === email
+    )
 
-    if(existingSnap.exists()){
-      userRecord = existingSnap.val()
-    }else{
-      const actorIds = await Auth._findMatchingActorIds(email)
+    if(!matches.length) return false
 
-      if(!actorIds.length){
-        // nikdo s tímhle e-mailem v actors — vytvoř účet bez rolí,
-        // admin ho pak může ručně napojit přes Správu herců
-        userRecord = {email, name, role: "member", actors: {}}
-      }else{
-        const actorsMap = {}
-        actorIds.forEach(id => { actorsMap[id] = true })
-        userRecord = {email, name, role: "member", actors: actorsMap}
-      }
-
-      await db.ref("users/" + uid).set(userRecord)
+    let role = "MEMBER"
+    if(matches.some(([id, a]) => (a.role || "").toUpperCase() === "ADMIN")){
+      role = "ADMIN"
     }
 
     const session = {
-      uid,
       email,
-      name: userRecord.name || name,
+      name: fbUser.displayName || email,
       photoURL: fbUser.photoURL || null,
-      role: userRecord.role || "member",
-      actors: userRecord.actors || {}
+      role,
+      actorIds: matches.map(([id]) => id)
     }
     localStorage.setItem("10dt_user", JSON.stringify(session))
-  },
-
-  /* -----------------------------------------------------------
-     Najde actorId všech herců, kde actor.email === email
-     NEBO actor.guardianEmail === email (rodič + dítě zaráz)
-  ----------------------------------------------------------- */
-  async _findMatchingActorIds(email){
-    const snap = await db.ref("actors").once("value")
-    const actors = snap.val() || {}
-    const matches = []
-
-    Object.entries(actors).forEach(([id, a]) => {
-      if(a.email === email || a.guardianEmail === email){
-        matches.push(id)
-      }
-    })
-
-    return matches
+    return true
   }
 }
 
