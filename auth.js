@@ -1,10 +1,11 @@
 /* ==============================================================
    10base DT — AUTH.JS
-   Google přihlášení (Firebase Auth) + kontrola e-mailu proti
-   plochému uzlu `actors` — stejný princip jako 10base a `members`:
-   appka po loginu proskenuje actors a najde shodu podle email
-   (dospělý) nebo guardianEmail (rodič dítěte). Bez shody = odepře.
-   Vyžaduje: window.db (firebase-config.js), firebase-auth-compat.js
+   Google přihlášení (Firebase Auth) + kontrola přes actorsByUid —
+   stejný mechanismus jako 10base (membersByUid): index je čtený
+   přímo podle auth.uid, .write je v rules zakázaný i pro appku
+   samotnou — záznam do actorsByUid/{uid} přidává admin ručně
+   přes RTDB konzoli poté, co se dotyčný jednou přihlásí a appka
+   mu ukáže jeho uid.
 ================================================================== */
 
 const Auth = {
@@ -15,7 +16,11 @@ const Auth = {
       const result = await firebase.auth().signInWithPopup(provider)
       const ok = await Auth._loadSession(result.user)
       if(!ok){
-        alert("Tenhle e-mail není v seznamu herců ani zákonných zástupců. Ozvi se adminovi.")
+        alert(
+          "Tenhle účet ještě nemá přístup.\n\n" +
+          "Pošli tohle UID adminovi, ať tě přidá do actorsByUid:\n\n" +
+          result.user.uid
+        )
         await firebase.auth().signOut()
         return
       }
@@ -33,34 +38,30 @@ const Auth = {
   },
 
   /* -----------------------------------------------------------
-     Projde actors, najde všechny záznamy, kde email nebo
-     guardianEmail sedí na přihlašovací e-mail (rodič tak
-     "odemkne" i sebe, i dítě). Role se bere z prvního nalezeného
-     záznamu, který má vlastní `role` pole; pokud je mezi
-     shodami ADMIN, vyhrává ADMIN.
+     actorsByUid/{uid} = {role, actorIds: {a1:true, a2:true}} —
+     role žije přímo tady (rodič nemusí mít vlastní actors
+     záznam), actorIds je seznam koho ovládá (sebe + případně dítě).
   ----------------------------------------------------------- */
   async _loadSession(fbUser){
-    const snap   = await db.ref("actors").once("value")
-    const actors = snap.val() || {}
-    const email  = fbUser.email
-
-    const matches = Object.entries(actors).filter(([id, a]) =>
-      a.email === email || a.guardianEmail === email
-    )
-
-    if(!matches.length) return false
-
-    let role = "MEMBER"
-    if(matches.some(([id, a]) => (a.role || "").toUpperCase() === "ADMIN")){
-      role = "ADMIN"
+    let entry = null
+    try{
+      const snap = await db.ref("actorsByUid/" + fbUser.uid).once("value")
+      entry = snap.val()
+    }catch(err){
+      // permission-denied = záznam v actorsByUid neexistuje
+      return false
     }
+    if(!entry) return false
+
+    const actorIds = Object.keys(entry.actorIds || {})
 
     const session = {
-      email,
-      name: fbUser.displayName || email,
+      uid: fbUser.uid,
+      email: fbUser.email,
+      name: fbUser.displayName || fbUser.email,
       photoURL: fbUser.photoURL || null,
-      role,
-      actorIds: matches.map(([id]) => id)
+      role: (entry.role || "MEMBER").toUpperCase(),
+      actorIds
     }
     localStorage.setItem("10dt_user", JSON.stringify(session))
     return true
