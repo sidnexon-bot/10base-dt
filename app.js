@@ -19,14 +19,12 @@ const isDesktop = window.innerWidth >= 1025
 ================================ */
 
 function initActorFromSession(){
-  const user = JSON.parse(localStorage.getItem("10dt_user") || "null")
-  if(!user){
-    window.location.href = "login.html"
-    return false
-  }
+  const user = Auth.require() // redirects to login.html if missing
+  if(!user) return false
+
   ACTOR_EMAIL = user.email
   ACTOR_NAME  = user.name
-  ACTOR_ROLE  = (user.role || "member").toUpperCase()
+  ACTOR_ROLE  = (user.role || "MEMBER").toUpperCase()
   AUTH_ROLE   = ACTOR_ROLE
 
   updateProfileBtn()
@@ -35,8 +33,8 @@ function initActorFromSession(){
 
 function updateProfileBtn(){
   const profileBtn = document.getElementById("profileBtn")
+  const user = Auth.getUser()
   if(profileBtn){
-    const user = JSON.parse(localStorage.getItem("10dt_user") || "null")
     if(user?.photoURL){
       profileBtn.innerHTML = `<img src="${user.photoURL}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
     }else{
