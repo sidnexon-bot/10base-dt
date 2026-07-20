@@ -13,8 +13,7 @@ firebase.initializeApp({
   storageBucket: "base-dev-201a8.firebasestorage.app",
   messagingSenderId: "63666844773",
   appId: "1:63666844773:web:5548e7a96e01375089028c",
-  // databaseURL: "https://base-dev-201a8-default-rtdb.<REGION>.firebasedatabase.app"
-  // ↑ DOPLNIT — viz poznámka níž, bez tohohle window.db nepůjde
+  databaseURL: "https://base-dev-201a8-default-rtdb.europe-west1.firebasedatabase.app"
 });
 
 window.db = firebase.database();
